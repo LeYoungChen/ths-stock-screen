@@ -14,15 +14,16 @@
 
 ## 固定执行流程
 
-按 [数据契约](references/data-contract.md) 准备 normalized.json，然后：
+按 [数据契约](references/data-contract.md) 准备内部 .work/normalized.json，然后：
 
 ```sh
-python3 scripts/screen.py --input normalized.json --out output
-python3 scripts/render_report.py --input output/results.json --out output/index.html
+python3 scripts/build_report.py --input .work/normalized.json --out-dir output
 python3 -m unittest discover -s tests
 ```
 
-打开 output/index.html。顶部先展示筛选股票数及每组剔除/剩余数的面包屑，可展开全部33步；未知数据保留，股票不重复扣除。点击股票切换图表、点击色块查看依据，可筛选和导出名单。完整开高低收数据绘制蜡烛 K 线；只有收盘数据则展示收盘走势，不伪造 K 线。
+唯一交付文件为 **output/选股结果.html**，不附加CSV、JSON、审计文档或压缩包。中间数据在内部`.work/`目录保留，页面本身离线可用。
+
+打开 output/选股结果.html。顶部先展示筛选股票数及每组剔除/剩余数的面包屑，可展开全部33步；未知数据保留，股票不重复扣除。点击股票切换图表、点击色块查看依据，可筛选和导出名单。完整开高低收数据绘制蜡烛 K 线；只有收盘数据则展示收盘走势，不伪造 K 线。
 
 - 通过、不通过、待核验严格分开，固定分母 33。
 - 当前候选池不冒充全市场；数据不足不下“全市场无股符合”的结论。

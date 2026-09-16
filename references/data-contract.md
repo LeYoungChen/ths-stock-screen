@@ -53,28 +53,27 @@
 ## WorkBuddy v2 导入
 
 ```sh
-python3 scripts/import_workbuddy.py --source /path/rerun-v2 --as-of 2026-09-15 --profiles /path/reviewed-profiles.json --out /path/normalized.json
-python3 scripts/screen.py --input /path/normalized.json --out /path/output
-python3 scripts/render_report.py --input /path/output/results.json --out /path/output/index.html
+python3 scripts/import_workbuddy.py --source /path/rerun-v2 --as-of 2026-09-15 --profiles /path/reviewed-profiles.json --out /path/.work/normalized.json
+python3 scripts/build_report.py --input /path/.work/normalized.json --out-dir /path/output
 ```
 
 适配器固定读取已有 v2 文件布局；缺文件、字段歧义、资金字段日期不匹配直接报错。此命令示例日期不是更改 Skill 默认日期。
 
 reviewed-profiles.json 含 as_of、profiles（仅已核验数据族）、files（`raw/文件名` 到 SHA256 的映射，须与适配器读取的所有文件完全一致）。先无 --profiles 导入得到 manifest；审阅原始工具参数和 CSV 后再填写，不能自动把所有 verified 改 true。数据变更后哈希校验会拒绝旧证据。
 
-## 输出
+## 唯一用户交付
 
-- index.html：主报告，离线热力图、名单搜索/筛选/CSV下载、近期收盘或真实 K 线。
-- results.json：每只股票 33 条数值、口径、来源、状态、图表数据。
-- conditions.csv：完整逐项依据。
-- passed.csv：33 项全通过，空表也保留表头。
-- partial.csv：全部未全通过候选，明确失败数和未知数。
+运行 `build_report.py`，仅生成 **选股结果.html**，文件名固定。所有结果数据、图表、样式和交互内嵌，HTML无需伴随文件即可离线打开。用户主动点击页面中的导出按钮仍可下载当前名单；运行时不自动交付CSV。
 
-排名只按规则匹配度，不做收益预测。近期表现为指定交易日之间的不复权收盘变化，非分红再投资回报；复权数据适配需同步更新图表 basis，目前默认适配不复权数据。
+原始CSV、normalized.json、范围确认记录等放在内部`.work/`工作目录，不能作为WorkBuddy产物逐个展示。默认不另写总结报告、审计文档、README、截图、PDF或压缩包。最终回复仅链接选股结果.html及一句说明。保留旧文件，不为清理产物而删除用户历史数据。
+
+`screen.py` 和 `render_report.py` 保留用于开发调试；用户没有明确要求调试附件时，不走会生成多份JSON/CSV的旧交付路径。如果调试确需调用 screen.py，把其输出定向到内部`.work/`，不要定向到交付目录。
+
+排名只按规则匹配度，不做收益预测。近期表现为指定交易日之间的不复权收盘变化，非分红再投资回报；目前默认适配不复权数据。
 
 ## 筛选流程与面包屑
 
-报告先展示本次实际检验的去重股票数，再按七个条件组展示进入、剔除、剩余和累计待核验数。展开查看33条顺序回放。`results.json.funnel` 和 `funnel.csv` 均由引擎生成；禁止手工改数字。
+报告先展示本次实际检验的去重股票数，再按七个条件组展示进入、剔除、剩余和累计待核验数。展开查看33条顺序回放。HTML内嵌的 funnel 数据由引擎生成；禁止手工改数字。调试模式可在内部工作目录保存results.json和funnel.csv，不作为默认交付。
 
 每只股票仅在首次明确失败时移出；未知不剔除。在任何一步都满足 `进入 = 本步剔除 + 剩余`。最终 `起始 = 累计剔除 + 全通过 + 待核验`。这是固定顺序的结果回放，不表示数据接口真实查询时间顺序；改变顺序会改变淘汰归因，不改变最终名单。热力图仍保留所有原始候选。
 

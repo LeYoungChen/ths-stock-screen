@@ -26,7 +26,7 @@
 
 ## 确认记录与一致性
 
-把范围卡和真实用户回复保存在本次运行目录的 `scope-confirmation.json` 或等价宿主记录中，至少包含：
+把范围卡和真实用户回复保存在本次内部工作目录的 `.work/scope-confirmation.json` 或等价宿主记录中，至少包含：
 
 - as_of、scope_kind、unique_count、排序后的完整 codes、代码名单 SHA256；
 - source、coverage_note、disclosed_gaps、用户选择的交付方式；
