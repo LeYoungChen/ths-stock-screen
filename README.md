@@ -20,7 +20,7 @@ python3 scripts/render_report.py --input output/results.json --out output/index.
 python3 -m unittest discover -s tests
 ```
 
-打开 output/index.html。点击股票切换图表、点击色块查看依据，可筛选和导出名单。完整开高低收数据绘制蜡烛 K 线；只有收盘数据则展示收盘走势，不伪造 K 线。
+打开 output/index.html。顶部先展示筛选股票数及每组剔除/剩余数的面包屑，可展开全部33步；未知数据保留，股票不重复扣除。点击股票切换图表、点击色块查看依据，可筛选和导出名单。完整开高低收数据绘制蜡烛 K 线；只有收盘数据则展示收盘走势，不伪造 K 线。
 
 - 通过、不通过、待核验严格分开，固定分母 33。
 - 当前候选池不冒充全市场；数据不足不下“全市场无股符合”的结论。

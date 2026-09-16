@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
-VERSION = '2.0.0'
+VERSION = '2.1.0'
 LABELS = ['收盘>MA5','收盘>MA10','收盘>MA20','收盘>MA30','收盘>MA60',
           'MA5上行','MA10上行','MA20不下降','MA30不下降','MACD d2>d3','MACD d1>d2','MACD d0>d1',
           '三日MACD>0','三日DIFF>DEA','周MACD上行','三周MACD>0','三周DIFF>DEA',
@@ -76,6 +76,41 @@ def chart_data(daily,cal,T):
         changes[str(n)]=float((a/b-1)*100) if a is not None and b is not None and b>0 else None
     return {'kind':'candlestick' if bars and all('open' in b for b in bars) else 'close',
             'bars':bars,'changes':changes,'basis':'不复权收盘价变化，非含分红总回报'}
+
+def build_funnel(stocks,scope,T=None):
+    """Sequential replay: only confirmed failures remove a stock, once."""
+    current={s['code']:s for s in stocks};steps=[];pending=set();upstream=[]
+    previous=None
+    for stage in scope.get('selection_history',[]):
+        before=stage['input_codes'];after=stage['remaining_codes']
+        if len(before)!=len(set(before)) or len(after)!=len(set(after)):
+            raise ValueError('预筛历史代码重复')
+        before,after=set(before),set(after)
+        if not stage.get('source') or stage.get('as_of')!=T or not stage.get('label'):
+            raise ValueError('预筛历史缺少来源、名称或日期不匹配')
+        if not after<=before or (previous is not None and before!=previous):
+            raise ValueError('预筛历史必须是连续的逐步子集，不能拼接独立查询数量')
+        upstream.append({'label':stage['label'],'entered':len(before),'removed':len(before-after),
+                         'remaining':len(after),'removed_codes':sorted(before-after),'source':stage['source']})
+        previous=after
+    if previous is not None and previous!=set(current):raise ValueError('预筛终点与本次输入候选池不一致')
+    start=len(current)
+    for i,label in enumerate(LABELS,1):
+        entered=len(current)
+        removed=sorted(c for c,s in current.items() if s['conditions'][str(i)]['status']=='fail')
+        pending.update(c for c,s in current.items() if s['conditions'][str(i)]['status']=='unknown')
+        for c in removed:del current[c]
+        pending.intersection_update(current)
+        steps.append({'rule':i,'label':label,'entered':entered,'removed':len(removed),
+                      'remaining':len(current),'pending':len(pending),'removed_codes':removed})
+    groups=[]
+    for label,a,b in GROUPS:
+        group=steps[a-1:b]
+        groups.append({'label':label,'entered':group[0]['entered'],'removed':sum(x['removed'] for x in group),
+                       'remaining':group[-1]['remaining'],'pending':group[-1]['pending']})
+    return {'start':start,'upstream':upstream,'steps':steps,'groups':groups,'remaining':len(current),
+            'pending':len(pending),'passed':len(current)-len(pending),
+            'note':'按条件1–33顺序回放，股票只在首次已知失败处扣除；待核验保留。扣除归因随顺序变化，最终结果不变。'}
 
 def evaluate(doc):
     T=iso(doc['as_of'])
@@ -166,7 +201,7 @@ def evaluate(doc):
     scope=doc.get('scope',{'kind':'candidate_pool','coverage_verified':False})
     complete=scope.get('kind')=='full_universe' and scope.get('coverage_verified') is True and bool(scope.get('evidence')) and scope.get('expected_codes') is not None and set(scope['expected_codes'])==seen
     return {'version':VERSION,'as_of':T,'dates':ds,'labels':LABELS,'groups':GROUPS,'scope':scope,'market_complete':complete,
-            'stocks':out,'audit':doc.get('audit',{}),'calendar_source':doc.get('calendar_source','未注明'),
+            'funnel':build_funnel(out,scope,T),'stocks':out,'audit':doc.get('audit',{}),'calendar_source':doc.get('calendar_source','未注明'),
             'totals':{'pool':len(out),'pass':sum(r['verdict']=='pass' for r in out),'pending':sum(r['verdict']=='pending' for r in out),'fail':sum(r['verdict']=='fail' for r in out)},
             'ranking':'按通过数降序、失败数升序、代码排序；固定分母33；不代表收益预测',
             'provenance':doc.get('provenance',[])}
@@ -174,6 +209,9 @@ def evaluate(doc):
 def write_outputs(result,out):
     out=Path(out);out.mkdir(parents=True,exist_ok=True)
     (out/'results.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
+    with (out/'funnel.csv').open('w',encoding='utf-8-sig',newline='') as f:
+        w=csv.writer(f);w.writerow(['条件编号','条件','进入','本步剔除','剩余','剩余中累计待核验','本步剔除代码'])
+        for s in result['funnel']['steps']:w.writerow([s['rule'],s['label'],s['entered'],s['removed'],s['remaining'],s['pending'],';'.join(s['removed_codes'])])
     with (out/'conditions.csv').open('w',encoding='utf-8-sig',newline='') as f:
         w=csv.writer(f);w.writerow(['代码','名称','条件编号','条件','状态','实际值','原因'])
         for s in result['stocks']:
