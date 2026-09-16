@@ -11,7 +11,7 @@
 - `as_of`：YYYY-MM-DD，收盘截至日；必须出现在 calendar。
 - `calendar`：升序的真实交易日期，至少覆盖均线及近期表现需要的历史。推荐 100 个以上交易日；不能把自然日或工作日当交易日。缺失日不被更早数据替代。本次历史适配器使用候选池正成交量日期并集，必须披露其尚未经独立日历核验。
 - `calendar_source`：日历来源与限制。
-- `scope`：默认 `{"kind":"candidate_pool","coverage_verified":false,"note":"当前候选池"}`。全市场声明另需 kind=full_universe、coverage_verified=true、evidence 和与输入股票完全一致的 expected_codes；这些声明必须有实际证据支持。
+- `scope`：正式交付必须 kind=full_universe、coverage_verified=true、evidence、完整且不重复的expected_codes；stocks必须与expected_codes完全一致且非空。另需 universe={as_of, source, total, provider}，日期同T、总数等于名录数，source定位真实同日名录完整性证据。WorkBuddy还需顶层runtime="workbuddy"及universe.provider="ifind-mcp"；其他宿主同样要核实完整名录。这些声明不是独立证据。候选池仅允许开发/旧产物审计，build_report.py会拒绝正式交付。
 - `profiles`：逐数据族的口径证据，见下文。
 - `stocks`：股票数组，代码唯一。
 - `audit`：差异统计、说明等；不得硬编码“一致”，用实际比较计数。
@@ -54,10 +54,10 @@
 
 ```sh
 python3 scripts/import_workbuddy.py --source /path/rerun-v2 --as-of 2026-09-15 --profiles /path/reviewed-profiles.json --out /path/.work/normalized.json
-python3 scripts/build_report.py --input /path/.work/normalized.json --out-dir /path/output
+python3 scripts/screen.py --input /path/.work/normalized.json --out /path/.work/debug-output
 ```
 
-适配器固定读取已有 v2 文件布局；缺文件、字段歧义、资金字段日期不匹配直接报错。此命令示例日期不是更改 Skill 默认日期。
+该适配器只用于审计旧候选池，不能用于全市场正式报告。适配器固定读取已有 v2 文件布局；缺文件、字段歧义、资金字段日期不匹配直接报错。此命令示例日期不是更改 Skill 默认日期。
 
 reviewed-profiles.json 含 as_of、profiles（仅已核验数据族）、files（`raw/文件名` 到 SHA256 的映射，须与适配器读取的所有文件完全一致）。先无 --profiles 导入得到 manifest；审阅原始工具参数和 CSV 后再填写，不能自动把所有 verified 改 true。数据变更后哈希校验会拒绝旧证据。
 
@@ -85,3 +85,19 @@ reviewed-profiles.json 含 as_of、profiles（仅已核验数据族）、files�
 ```
 
 每步代码必须唯一，输出为输入子集，下一步输入等于上一步输出，最后输出等于本次 stocks 的代码集合，as_of 与本次一致。脚本校验这些关系并用集合差计算移出数。独立并行查询的返回行数不能当成逐步漏斗，取交集时应保留真正的累积交集名单。该记录证明计数链条，不自行证明预筛无漏选或全市场覆盖。没有记录时展示“历史预筛数量未核实”，从本次候选池开始；不能把33条条件误称为33只股票。
+
+## 正式全市场交付入口
+
+```sh
+python3 scripts/build_report.py --input .work/normalized.json --out-dir output
+```
+
+先通过全市场覆盖校验，才生成选股结果.html。示例scope结构（N和代码必须换成实际核实的完整名单，不能复制样本冒充全市场）：
+
+```json
+{"kind":"full_universe","coverage_verified":true,"evidence":"同日分页/分区与总数对账证据定位",
+ "expected_codes":["实际全A股代码集合"],
+ "universe":{"as_of":"YYYY-MM-DD","source":"同花顺连接器原始响应定位","total":0,"provider":"ifind-mcp"}}
+```
+
+上例total=0是不可运行占位值；必须由实际名录计数替换。build_report.py校验日期、来源字段、非空且无重复的名单、总数和输入集合一致性；不证明上游证据真实性，也不检查真实工具调用日志。Agent必须留存可核实的完整性证据。不得调用render_report.py绕过检查正式交付旧候选池。原有selection_history仅用于历史审计；新正式报告从完整输入池回放33项，不靠自然语言预筛缩池。
