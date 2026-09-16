@@ -1,24 +1,32 @@
 # ths-stock-screen
 
-供 AI Agent 调用的固定多周期选股 Skill，内置 33 项选股条件，覆盖均线、日周 MACD、日周及 30 分钟 VPT、ASI、CCI、资金净额和自由流通市值。
+固定 33 条选股规则的 Agent Skill。输出以 **股票 × 条件热力图、候选名单和近期走势** 为主，审计细节折叠。Python 3 标准库即可运行；HTML 离线可用。
 
-## 使用
+## 调用
 
-将本仓库放入 Agent 的 skills 目录，目录名保持为 `ths-stock-screen`。
+安装到 Agent skills 目录，命名为 `ths-stock-screen`：
 
-```text
-使用 $ths-stock-screen，按内置条件筛选。
+> 使用 ths-stock-screen，按内置条件筛选，输出热力图和匹配度较高候选的近期走势。
+
+默认日期 2026-09-09；只有用户明确指定才更改。数据接入与指标口径仍需核实。所有条件见 [SKILL.md](SKILL.md)。
+
+## 固定执行流程
+
+按 [数据契约](references/data-contract.md) 准备 normalized.json，然后：
+
+```sh
+python3 scripts/screen.py --input normalized.json --out output
+python3 scripts/render_report.py --input output/results.json --out output/index.html
+python3 -m unittest discover -s tests
 ```
 
-默认日期为 2026-09-09；可明确指定其他筛选日期。全部条件见 [SKILL.md](SKILL.md)。
+打开 output/index.html。点击股票切换图表、点击色块查看依据，可筛选和导出名单。完整开高低收数据绘制蜡烛 K 线；只有收盘数据则展示收盘走势，不伪造 K 线。
 
-## 文件
+- 通过、不通过、待核验严格分开，固定分母 33。
+- 当前候选池不冒充全市场；数据不足不下“全市场无股符合”的结论。
+- 固定交易日期和自然周，不按指标值变化划分周。
+- 未核实的资金分类、VPT/PVT 映射及指标参数维持未知。
+- 特定 WorkBuddy v2 CSV 可由 `scripts/import_workbuddy.py` 导入，口径证据与原始文件哈希绑定。
+- 本仓库不含真实行情、个人运行日志或账户数据，不附带数据权限。
 
-- `SKILL.md`：固定策略与执行规则，策略条件的真源。
-- `references/semantics.md`：时间、指标、字段口径及验证要求。
-- `references/example-20260909.md`：初始实现记录和客户端操作说明。
-- `assets/daily-core-candidate.txt`：仅覆盖部分日线条件的候选公式。
-
-## 当前状态
-
-已完成策略规则封装和 Skill 格式校验。实际筛选需接入行情及资金数据；同花顺公式尚未在目标客户端编译验证或安装。附带候选公式不代表完整策略，不能作为全条件筛选结果使用。
+同花顺公式仅在明确请求时生成；附带日线候选模板未在目标客户端验证，不代表完整策略。筛选匹配度不是收益预测。
